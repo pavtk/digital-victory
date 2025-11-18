@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Users</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+</head>
+<body class="p-4">
+
+<div class="container">
+
+    <h2 class="mb-4">Список пользователей</h2>
+
+    <!-- Кнопка добавить пользователя -->
+    <button class="btn btn-success mb-3" id="btn-add-user">Добавить пользователя</button>
+
+    <!-- Таблица пользователей -->
+    <table class="table table-hover" id="users-table">
+        <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Имя</th>
+                <th>Email</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Пользователи будут вставляться сюда -->
+        </tbody>
+    </table>
+
+    <!-- Контейнер для сообщений -->
+    <div id="alert-container"></div>
+</div>
+
+<!-- Модальное окно для отображения/добавления -->
+<div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Данные пользователя</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Для отображения деталей пользователя -->
+                <div id="user-details">
+                    <p><strong>ID:</strong> <span id="modal-id"></span></p>
+                    <p><strong>Имя:</strong> <span id="modal-name"></span></p>
+                    <p><strong>Email:</strong> <span id="modal-email"></span></p>
+                </div>
+
+                <!-- Форма добавления нового пользователя -->
+                <form id="add-user-form" class="d-none">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Имя</label>
+                        <input type="text" id="name" name="name" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" id="email" name="email" class="form-control" required />
+                    </div>
+                    <button type="submit" class="btn btn-primary">Добавить</button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+const tableBody = document.querySelector("#users-table tbody");
+const modal = new bootstrap.Modal(document.getElementById('userModal'));
+const modalElement = document.getElementById('userModal');
+const modalTitle = document.getElementById('modalTitle');
+const userDetails = document.getElementById("user-details");
+const addUserForm = document.getElementById("add-user-form");
+const alertContainer = document.getElementById("alert-container");
+const btnAddUser = document.getElementById("btn-add-user");
+
+// ---- 1) Загрузка списка пользователей ----
+async function loadUsers() {
+    tableBody.innerHTML = "";
+    try {
+        const res = await fetch('/users');
+        const users = await res.json();
+
+        users.forEach(user => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${user.id}</td>
+                <td>${user.name}</td>
+                <td>${user.email}</td>
+            `;
+            row.style.cursor = "pointer";
+            row.addEventListener("click", () => showUserDetails(user.id));
+            tableBody.appendChild(row);
+        });
+    } catch (err) {
+        console.error("Ошибка загрузки списка:", err);
+        showAlert("Ошибка загрузки пользователей", "danger");
+    }
+}
+
+// ---- 2) Показ деталей пользователя ----
+async function showUserDetails(id) {
+    try {
+        const res = await fetch(`/users/${id}`);
+        const data = await res.json();
+
+        modalTitle.textContent = "Данные пользователя";
+        userDetails.classList.remove("d-none");
+        addUserForm.classList.add("d-none");
+
+        document.getElementById("modal-id").textContent = data.id;
+        document.getElementById("modal-name").textContent = data.name;
+        document.getElementById("modal-email").textContent = data.email;
+
+        modal.show();
+    } catch (err) {
+        console.error("Ошибка загрузки пользователя:", err);
+        showAlert("Ошибка загрузки данных пользователя", "danger");
+    }
+}
+
+// ---- 3) Открыть форму добавления ----
+btnAddUser.addEventListener("click", () => {
+    modalTitle.textContent = "Добавить нового пользователя";
+    userDetails.classList.add("d-none");
+    addUserForm.classList.remove("d-none");
+    addUserForm.reset();
+    modal.show();
+});
+
+// ---- 4) Обработка отправки формы ----
+addUserForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const name = addUserForm.name.value.trim();
+    const email = addUserForm.email.value.trim();
+
+    if (!name || !email) {
+        showAlert("Заполните все поля", "warning");
+        return;
+    }
+
+    try {
+        const res = await fetch('/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email })
+        });
+
+        if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+
+        showAlert("Пользователь успешно добавлен!", "success");
+        modal.hide();
+        loadUsers();
+
+    } catch (err) {
+        console.error("Ошибка добавления:", err);
+        showAlert("Ошибка добавления пользователя", "danger");
+    }
+});
+
+// ---- 5) Показ уведомлений ----
+function showAlert(message, type = "info") {
+    alertContainer.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show mt-3" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+}
+
+// ---- Инициализация ----
+loadUsers();
+</script>
+
+</body>
+</html>
